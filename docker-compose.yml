@@ -129,6 +129,33 @@ services:
                 python seed.py"
     restart: "no"
 
+
+  seeder-cyclic:
+    image: python:3.12-slim
+    container_name: pg-seeder-cyclic
+    working_dir: /app
+    depends_on:
+      seeder:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: appdb
+      PGUSER: app
+      PGPASSWORD: app
+      ROWS: "1000"             # np. ile rekordów na cykl
+    volumes:
+      - ./seeder:/app
+    command: >
+      bash -lc "pip install --upgrade pip &&
+                pip install --no-cache-dir -r requirements.txt &&
+                while true; do
+                  python cyclic_job.py || echo 'seed failed';
+                  sleep 60;
+                done"
+    restart: unless-stopped
+
+
   # (opcjonalnie) Kafka UI
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
