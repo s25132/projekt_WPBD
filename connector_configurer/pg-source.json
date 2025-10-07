@@ -1,0 +1,28 @@
+{
+  "name": "pg-source",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "db",
+    "database.port": "5432",
+    "database.user": "app",
+    "database.password": "app",
+    "database.dbname": "appdb",
+
+    "topic.prefix": "appdb",
+    "plugin.name": "pgoutput",
+
+    "slot.name": "pg_src_slot",
+    "publication.name": "app",
+    "publication.autocreate.mode": "all_tables",
+
+    "snapshot.mode": "initial",
+    "schema.include.list": "public",
+    "table.include.list": "public.*",
+
+    "tombstones.on.delete": "false",
+    "decimal.handling.mode": "precise",
+    "time.precision.mode": "adaptive_time_microseconds"
+  }
+}
