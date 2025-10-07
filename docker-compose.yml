@@ -1,0 +1,273 @@
+services:
+  db:
+    image: postgres:16
+    container_name: postgres16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    command: >
+      postgres -c wal_level=logical
+               -c max_wal_senders=10
+               -c max_replication_slots=10
+               -c max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports: [ "2181:2181" ]
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on: [ zookeeper ]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports: [ "9092:9092" ]
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+        kafka-topics --bootstrap-server kafka:9092 --create --topic appdb.public.orders --partitions 1 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --topic appdb.public.users --partitions 1 --replication-factor 1
+      "
+    restart: "no"
+  
+  connect:
+    image: quay.io/debezium/connect:2.6
+    container_name: debezium-connect
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - db
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      # KAFKA_HEAP_OPTS: "-Xms256m -Xmx1g"
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/connectors || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  connector_configurer:
+    image: python:3.12-slim
+    container_name: connector_configurer
+    working_dir: /app
+    depends_on:
+      db:
+        condition: service_healthy
+      connect:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy 
+    environment:
+      CONNECT_URL: "http://connect:8083/connectors"
+    volumes:
+      - ./connector_configurer:/app
+    command: >
+      bash -lc "pip install --upgrade pip &&
+                pip install --no-cache-dir -r requirements.txt &&
+                python config.py --config-file pg-source.json"
+    restart: "no"   
+
+  seeder:
+    image: python:3.12-slim
+    container_name: pg-seeder
+    working_dir: /app
+    depends_on:
+      connector_configurer:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: appdb
+      PGUSER: app
+      PGPASSWORD: app
+      ROWS: "200"
+    volumes:
+      - ./seeder:/app
+    command: >
+      bash -lc "pip install --upgrade pip &&
+                pip install --no-cache-dir -r requirements.txt &&
+                python seed.py"
+    restart: "no"
+
+  # (opcjonalnie) Kafka UI
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+
+  spark:
+    image: spark:3.5.1-python3
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master", "--host", "spark"]
+    ports:
+      - "7077:7077"   # RPC
+      - "8082:8080"   # Spark Master UI
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  spark-worker:
+    image: spark:3.5.1-python3
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark:7077"]
+    depends_on:
+      spark:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8013:8081"   # Worker UI
+
+  spark-submit-orders:
+    image: spark:3.5.1-python3
+    container_name: spark-submit-orders
+    depends_on:
+      spark:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    working_dir: /opt/spark-apps
+    volumes:
+      - ./spark:/opt/spark-apps
+      - ./ivy-cache:/ivy-cache            # (polecane) cache zależności
+    command:
+      - /bin/bash
+      - -lc
+      - >
+        mkdir -p /ivy-cache &&
+        /opt/spark/bin/spark-submit
+        --master spark://spark:7077
+        --conf spark.jars.ivy=/ivy-cache
+        --conf spark.driver.bindAddress=0.0.0.0
+        --conf spark.driver.host=spark-submit-orders
+        --conf spark.driver.port=6061
+        --conf spark.blockManager.port=6060
+        --conf spark.executor.instances=1
+        --conf spark.executor.cores=1
+        --conf spark.executor.memory=1g
+        --conf spark.driver.memory=1g
+        --conf spark.cores.max=1
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,io.delta:delta-spark_2.12:3.2.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.774
+        --repositories https://repo1.maven.org/maven2,https://repos.spark-packages.org
+        /opt/spark-apps/read_orders.py
+    restart: "no"
+
+  spark-submit-users:
+    image: spark:3.5.1-python3
+    container_name: spark-submit-users
+    depends_on:
+      spark:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    working_dir: /opt/spark-apps
+    volumes:
+      - ./spark:/opt/spark-apps
+      - ./ivy-cache:/ivy-cache            # (polecane) cache zależności
+    command:
+      - /bin/bash
+      - -lc
+      - >
+        mkdir -p /ivy-cache &&
+        /opt/spark/bin/spark-submit
+        --master spark://spark:7077
+        --conf spark.jars.ivy=/ivy-cache
+        --conf spark.driver.bindAddress=0.0.0.0
+        --conf spark.driver.host=spark-submit-users
+        --conf spark.driver.port=6063
+        --conf spark.blockManager.port=6062
+        --conf spark.executor.instances=1
+        --conf spark.executor.cores=1
+        --conf spark.executor.memory=1g
+        --conf spark.driver.memory=1g
+        --conf spark.cores.max=1
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,io.delta:delta-spark_2.12:3.2.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.774
+        --repositories https://repo1.maven.org/maven2,https://repos.spark-packages.org
+        /opt/spark-apps/read_users.py
+    restart: "no"
+
+
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"  # S3 endpoint
+      - "9001:9001"  # UI
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/ready || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+
+  mc:
+    image: minio/mc:latest
+    container_name: mc
+    depends_on:
+      - minio
+    environment:
+      MC_HOST_minio: http://minioadmin:minioadmin@minio:9000
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO to be available...' &&
+      until mc ready minio; do sleep 1; done &&
+      echo 'Creating datalake bucket...' &&
+      mc mb minio/datalake --ignore-existing &&
+      echo 'All MinIO buckets created successfully!';
+      exit 0;
+      "
+    restart: "no"
