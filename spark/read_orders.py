@@ -66,7 +66,7 @@ envelope_wrapped = T.StructType([
 parsed = raw.select(
     F.from_json("key_str", key_wrapped).alias("k"),
     F.from_json("json",    envelope_wrapped).alias("e")
-)
+).filter(F.col("e.payload").isNotNull())
 
 # === 4) UDF: bytes (big-endian two's complement) -> Decimal(scale=2) ===
 SCALE = 2
@@ -105,3 +105,4 @@ delta_q = (flat.writeStream
     .start())
 
 spark.streams.awaitAnyTermination()
+
