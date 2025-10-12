@@ -40,7 +40,6 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
-      # --- ID klastra (musi być stały między restartami) ---
       CLUSTER_ID: l3oK7fVfQF-2yKf2r1F5hg
 
     ports:
