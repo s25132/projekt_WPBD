@@ -121,8 +121,10 @@ mc ls minio/datalake/tables/
 mc ls minio/datalake/tables/orders/
 mc ls minio/datalake/tables/users/
 
-# Pobierz plik Parquet lokalnie (opcjonalnie)
-mc cp minio/datalake/tables/orders/part-00000-*.parquet /tmp/
+# Pobierz plik Parquet lokalnie (najpierw zobacz dokładną nazwę)
+mc ls minio/datalake/tables/orders/
+# Następnie skopiuj konkretny plik używając pełnej nazwy
+mc cp minio/datalake/tables/orders/part-00000-<dokładna-nazwa>.parquet /tmp/
 ```
 
 ### 6. Testowanie CDC (Change Data Capture)
@@ -209,9 +211,12 @@ ROWS: "500"  # zamiast domyślnych 200
 
 #### Zmiana częstotliwości cyklicznego seedowania
 ```bash
-# W docker-compose.yml, sekcja 'seeder-cyclic'
-# Zmień wartość sleep (domyślnie 30 sekund)
-sleep 60;  # będzie dodawać dane co minutę
+# W docker-compose.yml, sekcja 'seeder-cyclic', znajdź linię z 'sleep 30'
+# i zmień wartość (domyślnie 30 sekund):
+#   while true; do
+#     python cyclic_job.py || echo 'seed failed';
+#     sleep 60;  # zmień z 30 na 60 - będzie dodawać dane co minutę
+#   done
 ```
 
 ## 📊 Przepływ Danych
