@@ -26,6 +26,6 @@ jobs:
       - name: Print changed Python files
         uses: s25132/hello-python-docker-action@v1
         with:
-          name: ${{ github.event_name == 'workflow_dispatch' && inputs.name || 'WORLD' }}
-          base_sha: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event.before }}
-          head_sha: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+          name: "WORLD"
+          base_sha: HEAD~1
+          head_sha: HEAD
