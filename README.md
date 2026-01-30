@@ -65,6 +65,7 @@ docker-compose logs -f spark-submit-orders
 - **URL**: http://localhost:9001
 - **Login**: minioadmin / minioadmin
 - **Funkcje**: Przeglądanie bucketów i zapisanych danych
+- **⚠️ UWAGA**: Zmień dane logowania w środowisku produkcyjnym!
 
 ### 3. Praca z Bazą Danych
 
@@ -107,9 +108,10 @@ docker exec kafka kafka-console-consumer \
 ### 5. Praca z MinIO i Danymi w Delta Lake
 
 ```bash
-# Połącz się z MinIO Client
+# Połącz się z MinIO Client (kontener mc jest już skonfigurowany)
 docker exec -it mc sh
 
+# W kontenerze mc alias "minio" jest już skonfigurowany poprzez MC_HOST_minio
 # Wyświetl buckety
 mc ls minio/
 
@@ -269,8 +271,8 @@ PostgreSQL → Debezium → Kafka → Spark Streaming → Delta Lake (MinIO)
 - Sprawdź Spark UI: http://localhost:8082
 
 ### PostgreSQL nie przyjmuje połączeń
-- Sprawdź healthcheck: `docker-compose ps db`
-- Sprawdź logi: `docker-compose logs db`
+- Sprawdź healthcheck: `docker-compose ps postgres16`
+- Sprawdź logi: `docker-compose logs postgres16`
 
 ## 📚 Dodatkowe Zasoby
 
@@ -293,4 +295,4 @@ PostgreSQL → Debezium → Kafka → Spark Streaming → Delta Lake (MinIO)
 
 ## 📄 Licencja
 
-Projekt edukacyjny - WPBD (Wyższa Projektowanie Baz Danych)
+Projekt edukacyjny - WPBD (Wybrane Problemy Baz Danych)
