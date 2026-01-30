@@ -19,8 +19,7 @@ services:
       PGPASSWORD: testpass
       ROWS: "10"
     command: >
-      bash -c "pytest -v --cov=. --cov-report=term-missing --cov-report=html 
-               test_seed.py test_cyclic_job.py"
+      bash -c "pytest -v --cov=. --cov-report=term-missing --cov-report=html test_seed.py test_cyclic_job.py"
 
 volumes:
   test-coverage:
