@@ -18,7 +18,7 @@ hconf.set("fs.s3a.secret.key", "minioadmin")
 hconf.set("fs.s3a.path.style.access", "true")
 hconf.set("fs.s3a.connection.ssl.enabled", "false")
 
-# === 1) kafka source ===
+# === 1) Kafka source ===
 df = (spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", "kafka:9092")
     .option("subscribe", TOPIC)
