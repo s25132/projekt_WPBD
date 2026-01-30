@@ -10,11 +10,6 @@ on:
       head_sha:
         description: "Head commit SHA (newer)"
         required: true
-      name:
-        description: "Name"
-        required: false
-        default: "WORLD"
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -26,6 +21,5 @@ jobs:
       - name: Print changed Python files
         uses: s25132/hello-python-docker-action@v1
         with:
-          name: "WORLD"
           base_sha: HEAD~1
           head_sha: HEAD
