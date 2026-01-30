@@ -10,7 +10,7 @@ port = os.getenv("PGPORT", "5432")
 db   = os.getenv("PGDATABASE", "appdb")
 user = os.getenv("PGUSER", "app")
 pw   = os.getenv("PGPASSWORD", "app")
-rows = int(os.getenv("ROWS", "200"))  # liczba nowych symulowanych użytkowników
+rows = int(os.getenv("ROWS", "200"))  # liczba nowych symulowanych użytkowników 200
 
 url = f"postgresql+psycopg2://{user}:{pw}@{host}:{port}/{db}"
 engine = create_engine(url, pool_pre_ping=True)
