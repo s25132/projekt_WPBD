@@ -13,13 +13,16 @@ Ten katalog zawiera testy jednostkowe dla plików `seed.py` i `cyclic_job.py`.
 
 ### Używając Docker (zalecane)
 
-Uruchom testy w kontenerze Docker używając docker-compose:
+#### Opcja 1: Docker Compose (z głównego katalogu projektu)
 
 ```bash
-# Z głównego katalogu projektu
-docker-compose -f docker-compose.test.yml up --build
+# Uruchom testy w kontenerze Docker
+docker compose -f docker-compose.test.yml run --rm seeder-tests
+```
 
-# Lub bezpośrednio z katalogu seeder
+#### Opcja 2: Bezpośrednio Docker (z katalogu seeder)
+
+```bash
 cd seeder
 docker build -f Dockerfile.test -t seeder-tests .
 docker run --rm seeder-tests
@@ -51,6 +54,11 @@ pytest --cov=. --cov-report=html --cov-report=term-missing
 ## Raport pokrycia kodu
 
 Po uruchomieniu testów z opcją `--cov-report=html`, raport HTML zostanie wygenerowany w katalogu `htmlcov/`. Otwórz `htmlcov/index.html` w przeglądarce, aby zobaczyć szczegółowy raport pokrycia kodu.
+
+Aktualnie testy zapewniają:
+- **100% pokrycia kodu** dla `seed.py`
+- **100% pokrycia kodu** dla `cyclic_job.py`
+- **19/19 testów przechodzi**
 
 ## Zakres testów
 
@@ -103,3 +111,15 @@ Po uruchomieniu testów z opcją `--cov-report=html`, raport HTML zostanie wygen
 - `pytest-mock>=3.14.0` - Rozszerzenie do mockowania
 
 Wszystkie zależności są wymienione w pliku `requirements.txt`.
+
+## Metody testowania
+
+Testy używają mocków (unittest.mock) do symulacji:
+- Połączeń z bazą danych (SQLAlchemy engine)
+- Generowania danych testowych (Faker)
+- Funkcji losowych (random.randint, random.uniform)
+
+Dzięki temu testy są:
+- **Szybkie** - nie wymagają rzeczywistej bazy danych
+- **Deterministyczne** - zawsze dają te same wyniki
+- **Izolowane** - nie wpływają na środowisko produkcyjne
