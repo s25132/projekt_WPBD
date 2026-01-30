@@ -1,0 +1,25 @@
+services:
+  seeder-tests:
+    # Service for running unit tests for seeder
+    # Tests seed.py and cyclic_job.py
+    build:
+      context: ./seeder
+      dockerfile: Dockerfile.test
+    container_name: seeder-tests
+    working_dir: /app
+    volumes:
+      - ./seeder:/app
+      - test-coverage:/app/htmlcov
+    environment:
+      # Set test environment variables
+      PGHOST: testdb
+      PGPORT: "5432"
+      PGDATABASE: testappdb
+      PGUSER: testuser
+      PGPASSWORD: testpass
+      ROWS: "10"
+    command: >
+      bash -c "pytest -v --cov=. --cov-report=term-missing --cov-report=html test_seed.py test_cyclic_job.py"
+
+volumes:
+  test-coverage:
