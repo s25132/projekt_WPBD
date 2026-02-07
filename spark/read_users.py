@@ -92,7 +92,7 @@ flat = (parsed
     .withColumn("is_deleted", (F.col("op") == "d").cast("boolean"))
 )
 
-# === 6) Zapis delta ===
+# === 6) Zapis delta  ===
 delta_q = (flat.writeStream
     .format("delta")
     .outputMode("append")
